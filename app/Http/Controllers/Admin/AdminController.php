@@ -140,7 +140,7 @@ use UploadImage;
     }
     public function login_form()
     {
-        return view('admin.loginAdmin');
+        return view('Admin.loginAdmin');
     }
     public function login_functionality(Request $request){
 

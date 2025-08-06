@@ -141,6 +141,93 @@ class UsersTable extends Component
         $this->dispatch('copyToClipboard', email: $email);
     }
 
+    // Unassign course from user
+    public function unassignCourse($userId, $courseId)
+    {
+        $this->dispatch('confirmUnassignCourse', 
+            userId: $userId,
+            courseId: $courseId,
+            message: 'Are you sure you want to unassign this entire course from the user?',
+            title: 'Unassign Course'
+        );
+    }
+
+    #[On('unassignCourse')]
+    public function unassignCourseConfirmed($userId, $courseId)
+    {
+        try {
+            // Remove all course sections for this user and course
+            UserCourseSection::where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->delete();
+            
+            // Remove the user course record
+            UserCourse::where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->delete();
+            
+            $course = Course::find($courseId);
+            $user = User::find($userId);
+            
+            $this->dispatch('successDeleted', 
+                message: "Course '{$course->course_title}' unassigned from {$user->name} successfully!"
+            );
+            
+        } catch (\Exception $e) {
+            $this->dispatch('deleteFailed', 
+                message: "Error unassigning course: " . $e->getMessage()
+            );
+        }
+    }
+
+    // Unassign specific section from user
+    public function unassignSection($userId, $courseId, $sectionId)
+    {
+        $this->dispatch('confirmUnassignSection', 
+            userId: $userId,
+            courseId: $courseId,
+            sectionId: $sectionId,
+            message: 'Are you sure you want to unassign this section from the user?',
+            title: 'Unassign Section'
+        );
+    }
+
+    #[On('unassignSection')]
+    public function unassignSectionConfirmed($userId, $courseId, $sectionId)
+    {
+        try {
+            // Remove the specific section
+            UserCourseSection::where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->where('section_id', $sectionId)
+                ->delete();
+            
+            // Check if user has any sections left for this course
+            $remainingSections = UserCourseSection::where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->count();
+            
+            // If no sections left, remove the course entirely
+            if ($remainingSections === 0) {
+                UserCourse::where('user_id', $userId)
+                    ->where('course_id', $courseId)
+                    ->delete();
+            }
+            
+            $section = Section::find($sectionId);
+            $user = User::find($userId);
+            
+            $this->dispatch('successDeleted', 
+                message: "Section '{$section->section_name}' unassigned from {$user->name} successfully!"
+            );
+            
+        } catch (\Exception $e) {
+            $this->dispatch('deleteFailed', 
+                message: "Error unassigning section: " . $e->getMessage()
+            );
+        }
+    }
+
     // Bulk operations
     public function bulkBlock()
     {

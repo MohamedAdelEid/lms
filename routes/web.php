@@ -63,8 +63,6 @@ Route::group(['middleware' => 'admin', 'prefix' => 'admin'],function (){
     Route::get('editcourse/{id}',[CourseController::class,'viewEditCourse'])->name('admin.editCourse');
     Route::put('editcourse/{id}',[CourseController::class,'editCourse'])->name('edit.editCourse');
 
-
-
     //SectionsRoutes
    Route::get('addsection',[SectionController::class,'addSection'])->name('admin.addSection');
    Route::post('storesection',[SectionController::class,'storeSection'])->name('admin.storeSection');
@@ -92,6 +90,8 @@ Route::group(['middleware' => 'admin', 'prefix' => 'admin'],function (){
     Route::put('edituser/{id}',[UserController::class,'editUser'])->name('edit.editUser');
     Route::get('add-course-for-user',[UserController::class,'addCourseToUser'])->name('admin.addCourseToUser');
     Route::post('add-course-for-user',[UserController::class,'storeCourseToUser'])->name('admin.storeCourseToUser');
+    Route::get('/admin/download-user-template', [UserController::class, 'downloadUserTemplate'])->name('admin.downloadUserTemplate');
+    Route::post('/admin/import-users', [UserController::class, 'importUsers'])->name('admin.importUsers');
 });
 
 //route to fetch sections with specific course id

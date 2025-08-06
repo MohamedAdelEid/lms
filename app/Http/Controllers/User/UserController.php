@@ -22,43 +22,49 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
-use mysql_xdevapi\Exception;
+use Illuminate\Support\Facades\Validator;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class UserController extends Controller
 {
     use UploadImage;
+
     public function show()
     {
         $adminData = Admin::find(Auth::guard('admin')->id());
-        return view('admin.view.viewUsers',compact('adminData'));
+        return view('admin.view.viewUsers', compact('adminData'));
     }
-    public function viewEditUser($id){
+
+    public function viewEditUser($id)
+    {
         $adminData = Admin::find(Auth::guard('admin')->id());
         $currentUserData = User::find($id);
-        return view('admin.editPages.editUser',compact('currentUserData','adminData'));
+        return view('admin.editPages.editUser', compact('currentUserData', 'adminData'));
     }
-    public function editUser(EditUserRequest $editUserRequest , $id)
+
+    public function editUser(EditUserRequest $editUserRequest, $id)
     {
         $currentUser = User::find($id);
-
         if (!$currentUser) {
-            return redirect()->route('admin.editUser',$currentUser->id)->with('error', 'User not found');
+            return redirect()->route('admin.editUser', $currentUser->id)->with('error', 'User not found');
         }
+
         $userNameChanged = $currentUser->name != $editUserRequest->name;
         $PhoneChanged = $currentUser->phone_number != $editUserRequest->phone_number;
         $emailChanged = $currentUser->email != $editUserRequest->email;
 
-
         if ($userNameChanged && !$PhoneChanged && !$emailChanged) {
             $currentUser->update([
-                'name' => $editUserRequest->section_name
+                'name' => $editUserRequest->name
             ]);
             return redirect()->route('admin.editUser', $currentUser->id)->with('success', 'Name Updated Successfully');
         }
 
         if (!$userNameChanged && $PhoneChanged && !$emailChanged) {
             $currentUser->update([
-                'phone_number' => $editUserRequest->number_of_lectures
+                'phone_number' => $editUserRequest->phone_number
             ]);
             return redirect()->route('admin.editUser', $currentUser->id)->with('success', 'Phone Number Updated Successfully');
         }
@@ -69,6 +75,7 @@ class UserController extends Controller
             ]);
             return redirect()->route('admin.editUser', $currentUser->id)->with('success', 'Email Address Updated Successfully');
         }
+
         if (!$userNameChanged && $PhoneChanged && $emailChanged) {
             $currentUser->update([
                 'email' => $editUserRequest->email,
@@ -76,6 +83,7 @@ class UserController extends Controller
             ]);
             return redirect()->route('admin.editUser', $currentUser->id)->with('success', 'Email Address And Phone Number Updated Successfully');
         }
+
         if ($userNameChanged && $PhoneChanged && !$emailChanged) {
             $currentUser->update([
                 'name' => $editUserRequest->name,
@@ -83,6 +91,7 @@ class UserController extends Controller
             ]);
             return redirect()->route('admin.editUser', $currentUser->id)->with('success', 'Name And Phone Number Updated Successfully');
         }
+
         if ($userNameChanged && !$PhoneChanged && $emailChanged) {
             $currentUser->update([
                 'name' => $editUserRequest->name,
@@ -101,33 +110,169 @@ class UserController extends Controller
         }
     }
 
-    public function addUser(){
+    public function addUser()
+    {
         $adminData = Admin::find(Auth::guard('admin')->id());
-        return view('admin.add.addUser',compact('adminData'));
+        return view('admin.add.addUser', compact('adminData'));
     }
-    public function storeUser(StoreUserRequest $storeUserRequest){
+
+    public function storeUser(StoreUserRequest $storeUserRequest)
+    {
         $adminId = Auth::guard('admin')->id();
         $hashedPassword = bcrypt($storeUserRequest->password);
-        $imageName = $this->UploadImage($storeUserRequest,'profile_picture','users');
-        User::create([
-            'name'=>$storeUserRequest->name,
-            'email'=>$storeUserRequest->email,
-            'password'=>$hashedPassword,
-            'profile_picture'=>$imageName,
-            'phone_number'=>$storeUserRequest->phone_number,
-            'admin_id'=>$adminId
-        ]);
-        return redirect()->route('admin.addUser')->with('success','User Created Successfully');
+        $imageName = $this->UploadImage($storeUserRequest, 'profile_picture', 'users');
 
+        User::create([
+            'name' => $storeUserRequest->name,
+            'email' => $storeUserRequest->email,
+            'password' => $hashedPassword,
+            'profile_picture' => $imageName,
+            'phone_number' => $storeUserRequest->phone_number,
+            'admin_id' => $adminId
+        ]);
+
+        return redirect()->route('admin.addUser')->with('success', 'User Created Successfully');
     }
-    public function addCourseToUser(){
+
+    // New method for downloading user import template
+    public function downloadUserTemplate()
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set headers
+        $headers = ['name', 'email', 'phone_number', 'password'];
+        $sheet->fromArray($headers, null, 'A1');
+
+        // Add sample data
+        $sampleData = [
+            ['John Doe', 'john@example.com', '1234567890', 'password123'],
+            ['Jane Smith', 'jane@example.com', '0987654321', 'securepass'],
+            ['Mike Johnson', 'mike@example.com', '5555555555', 'mypassword']
+        ];
+        $sheet->fromArray($sampleData, null, 'A2');
+
+        // Style the header row
+        $sheet->getStyle('A1:D1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:D1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+        $sheet->getStyle('A1:D1')->getFill()->getStartColor()->setRGB('4472C4');
+        $sheet->getStyle('A1:D1')->getFont()->getColor()->setRGB('FFFFFF');
+
+        // Auto-size columns
+        foreach (range('A', 'D') as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        // Create writer and download
+        $writer = new Xlsx($spreadsheet);
+        $filename = 'user_import_template_' . date('Y-m-d_H-i-s') . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer->save('php://output');
+        exit;
+    }
+
+    // New method for importing users
+    public function importUsers(Request $request)
+    {
+        $request->validate([
+            'import_file' => 'required|file|mimes:xlsx,xls,csv|max:10240' // 10MB max
+        ]);
+
+        try {
+            $file = $request->file('import_file');
+            $spreadsheet = IOFactory::load($file->getPathname());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+
+            // Remove header row
+            $headers = array_shift($rows);
+            
+            // Validate headers
+            $expectedHeaders = ['name', 'email', 'phone_number', 'password'];
+            if (array_map('strtolower', $headers) !== $expectedHeaders) {
+                return redirect()->back()->with('error', 'Invalid file format. Please use the provided template.');
+            }
+
+            $errors = [];
+            $validUsers = [];
+            $adminId = Auth::guard('admin')->id();
+
+            // Validate all rows first
+            foreach ($rows as $index => $row) {
+                $rowNumber = $index + 2; // +2 because we removed header and arrays are 0-indexed
+                
+                // Skip empty rows
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+
+                $userData = [
+                    'name' => trim($row[0] ?? ''),
+                    'email' => trim($row[1] ?? ''),
+                    'phone_number' => trim($row[2] ?? ''),
+                    'password' => trim($row[3] ?? ''),
+                ];
+
+                // Validate each user
+                $validator = Validator::make($userData, [
+                    'name' => 'required|string|max:255',
+                    'email' => 'required|email|unique:users,email|max:255',
+                    'phone_number' => 'required|string|max:20',
+                    'password' => 'required|string|min:8',
+                ]);
+
+                if ($validator->fails()) {
+                    foreach ($validator->errors()->all() as $error) {
+                        $errors[] = "Row {$rowNumber}: {$error}";
+                    }
+                } else {
+                    $validUsers[] = [
+                        'name' => $userData['name'],
+                        'email' => $userData['email'],
+                        'phone_number' => $userData['phone_number'],
+                        'password' => Hash::make($userData['password']),
+                        'profile_picture' => 'default.jpg',
+                        'admin_id' => $adminId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            // If there are any errors, don't import anything
+            if (!empty($errors)) {
+                return redirect()->back()->with('import_errors', $errors);
+            }
+
+            // If no valid users found
+            if (empty($validUsers)) {
+                return redirect()->back()->with('error', 'No valid users found in the file.');
+            }
+
+            // Import all valid users
+            User::insert($validUsers);
+
+            return redirect()->back()->with('success', count($validUsers) . ' users imported successfully!');
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error processing file: ' . $e->getMessage());
+        }
+    }
+
+    public function addCourseToUser()
+    {
         $adminData = Admin::find(Auth::guard('admin')->id());
         $courses = Course::all();
-        return view('admin.add.addCourseToUser',compact('adminData','courses'));
+        return view('admin.add.addCourseToUser', compact('adminData', 'courses'));
     }
+
     public function storeCourseToUser(Request $request)
     {
-        try{
+        try {
             $validatedData = $request->validate([
                 'email' => 'required|email|exists:users',
                 'course_id' => 'required|exists:courses,id',
@@ -137,10 +282,8 @@ class UserController extends Controller
                 'email.required' => 'The email field is required.',
                 'email.email' => 'The email must be a valid email address.',
                 'email.exists' => 'Student Not Found.',
-
                 'course_id.required' => 'The course field is required.',
                 'course_id.exists' => 'The Selected Course Is Invalid.',
-
                 'sections.required' => 'At least one section must be selected.',
                 'sections.array' => 'The sections must be an array.',
                 'sections.*.exists' => 'One or more selected sections are invalid.',
@@ -152,64 +295,72 @@ class UserController extends Controller
                 foreach ($validatedData['sections'] as $sectionId) {
                     $user->courses()->attach($validatedData['course_id'], ['section_id' => $sectionId]);
                 }
+
                 UserCourse::create([
-                    'user_id'=>$user->id,
-                    'course_id'=>$validatedData['course_id'] ,
+                    'user_id' => $user->id,
+                    'course_id' => $validatedData['course_id'],
                 ]);
+
                 return redirect()->route('admin.addCourseToUser')->with('success', 'Course assigned successfully');
             } else {
                 return redirect()->route('admin.addCourseToUser')->with('error', 'No Student Found');
             }
-        }catch (QueryException $e){
+        } catch (QueryException $e) {
             if ($e->errorInfo[1] == 1062) {
                 return redirect()->route('admin.addCourseToUser')->with('error', 'Course already assigned to the student.');
             } else {
-                // Handle other database-related exceptions if needed
                 return redirect()->route('admin.addCourseToUser')->with('error', 'An error occurred. Please try again later.');
             }
         }
-
     }
 
-    public function editUserInformation(){
+    public function editUserInformation()
+    {
         $user = Auth::user();
-        return view('user.editPersonalInformation',compact('user'));
+        return view('user.editPersonalInformation', compact('user'));
     }
+
     public function index()
     {
         $user = Auth::user();
-        $numberOfLikes = Discussions::where('user_id','=',Auth::user()->id)
-            ->where('likes','=','1')
+        $numberOfLikes = Discussions::where('user_id', '=', Auth::user()->id)
+            ->where('likes', '=', '1')
             ->count();
-        $numberOfComments = Discussions::where('user_id','=',Auth::user()->id)->count();
-        $coursesOfLoggedUser = UserCourse::where('user_id','=',Auth::user()->id)->get()->take(6);
-        return view('user.home',compact(
+        $numberOfComments = Discussions::where('user_id', '=', Auth::user()->id)->count();
+        $coursesOfLoggedUser = UserCourse::where('user_id', '=', Auth::user()->id)->get()->take(6);
+
+        return view('user.home', compact(
             'user',
             'numberOfLikes',
             'numberOfComments',
             'coursesOfLoggedUser'
         ));
     }
-    public function viewCourses(){
+
+    public function viewCourses()
+    {
         $categories = Category::all();
         $courses = Course::orderBy('created_at', 'desc')->take(10)->get();
-        $coursesOfLoggedUser = UserCourse::where('user_id','=',Auth::user()->id)->get();
+        $coursesOfLoggedUser = UserCourse::where('user_id', '=', Auth::user()->id)->get();
         $user = Auth::user();
-        return view('user.courses', compact('user', 'courses', 'categories','coursesOfLoggedUser'));
+        return view('user.courses', compact('user', 'courses', 'categories', 'coursesOfLoggedUser'));
     }
-    public function viewPlaylist($courseId){
-        $user = Auth::user();
-        $sectionsByCourseIdAndLoggedUser = UserCourseSection::where('course_id','=',$courseId)
-                                                            ->where('user_id',$user->id)
-                                                            ->get();
 
+    public function viewPlaylist($courseId)
+    {
+        $user = Auth::user();
+        $sectionsByCourseIdAndLoggedUser = UserCourseSection::where('course_id', '=', $courseId)
+            ->where('user_id', $user->id)
+            ->get();
         $course = Course::findOrFail($courseId);
         $course->load('sections.lectures.videos');
-        return view('user.playlist',compact('user', 'course','sectionsByCourseIdAndLoggedUser'));
+        return view('user.playlist', compact('user', 'course', 'sectionsByCourseIdAndLoggedUser'));
     }
-    public function watchVideo($lectureId){
+
+    public function watchVideo($lectureId)
+    {
         $lecture = Lecture::with('section.course.instructor')->findOrFail($lectureId);
-        $video = Video::where('lecture_id', '=', $lectureId)->first(); // Retrieve the video associated with the lecture
+        $video = Video::where('lecture_id', '=', $lectureId)->first();
         $numberOfLikes = Discussions::where('lecture_id', '=', $lectureId)
             ->where('likes', '=', '1')
             ->count();
@@ -222,14 +373,11 @@ class UserController extends Controller
         $discussionsByLectureId = Discussions::with('user')
             ->where('lecture_id', '=', $lectureId)
             ->get()
-            ->map(function($discussion) {
-                // Format the date to Y-m-d format
+            ->map(function ($discussion) {
                 $discussion->message_date = Carbon::parse($discussion->message_date)->format('Y-m-d');
                 return $discussion;
             });
         $user = Auth::user();
-
-        // Check if the logged-in user has an existing comment
         $existingComment = Discussions::where('lecture_id', $lectureId)
             ->where('user_id', $user->id)
             ->first();
@@ -244,7 +392,7 @@ class UserController extends Controller
             'instructorImage',
             'instructorQualification',
             'video',
-            'existingComment' // Pass the $existingComment variable to the view
+            'existingComment'
         ));
     }
 
@@ -253,26 +401,21 @@ class UserController extends Controller
         if ($request->ajax()) {
             $lectureId = $request->lecture_id;
             $userId = Auth::user()->id;
-
-            // Fetch the discussion entry for the given lecture ID and user ID
             $discussion = Discussions::where('lecture_id', $lectureId)
                 ->where('user_id', $userId)
                 ->first();
 
             if (!$discussion) {
-                // If no discussion entry exists, create a new one with like value 1
                 $discussion = Discussions::create([
                     'user_id' => $userId,
                     'lecture_id' => $lectureId,
-                    'likes' => '1' // Use string value for enum column
+                    'likes' => '1'
                 ]);
             } else {
-                // Toggle like status
                 $discussion->likes = ($discussion->likes == '0') ? '1' : '0';
                 $discussion->save();
             }
 
-            // Update likes count
             $likesCount = Discussions::where('lecture_id', $lectureId)
                 ->where('likes', '1')
                 ->count();
@@ -290,8 +433,6 @@ class UserController extends Controller
     public function edit($id, Request $request)
     {
         $discussion = Discussions::findOrFail($id);
-
-        // Update the message field
         $discussion->message = $request->input('message');
         $discussion->save();
 
@@ -301,15 +442,14 @@ class UserController extends Controller
     public function delete($id)
     {
         $discussion = Discussions::findOrFail($id);
-
-        // Convert message field to null
         $discussion->message = null;
         $discussion->save();
 
         return response()->json(['success' => true, 'message' => 'Discussion message cleared successfully']);
     }
 
-    public function addComment(Request $request, $lectureId){
+    public function addComment(Request $request, $lectureId)
+    {
         $request->validate([
             'comment_box' => 'required|max:255',
         ], [
@@ -323,13 +463,11 @@ class UserController extends Controller
             ->first();
 
         if ($existingComment) {
-            // If the user has already made a comment, update the existing comment
             $existingComment->update([
                 'message' => $request->comment_box,
                 'message_date' => now(),
             ]);
         } else {
-            // If the user hasn't made a comment yet, create a new one
             $discussion = Discussions::create([
                 'message' => $request->comment_box,
                 'lecture_id' => $lectureId,
@@ -339,6 +477,7 @@ class UserController extends Controller
         }
 
         $numberOfComments = Discussions::where('lecture_id', $lectureId)->count();
+
         return response()->json([
             'success' => true,
             'message' => 'Comment added successfully',
@@ -346,44 +485,48 @@ class UserController extends Controller
             'numberOfComments' => $numberOfComments,
         ]);
     }
-    public function myProfile(){
+
+    public function myProfile()
+    {
         $user = Auth::user();
-        return view('user.myProfile',compact('user'));
+        return view('user.myProfile', compact('user'));
     }
-    public function handleImage(Request $request){
+
+    public function handleImage(Request $request)
+    {
         $action = $request->input('action');
-        if($action == 'delete'){
+
+        if ($action == 'delete') {
             $user = Auth::user();
             $imageFolder = 'users';
-
-            // Get the current profile picture name from the database
             $currentProfilePicture = $user->profile_picture;
-
-            // Delete the profile picture file from storage
             $filePath = 'images/' . $imageFolder . '/' . $currentProfilePicture;
+
             if ($currentProfilePicture && File::exists(public_path($filePath))) {
                 unlink(public_path($filePath));
             }
 
-            // Update the profile picture field in the database
             $user->profile_picture = 'default.jpg';
             $user->save();
-            return redirect()->back()->with('Profile-success', 'Image Deleted successfully.');
 
-        }
-        elseif ($action == 'update') {
+            return redirect()->back()->with('Profile-success', 'Image Deleted successfully.');
+        } elseif ($action == 'update') {
             $request->validate([
                 'profile_picture' => 'file|image|mimes:jpg,png,jpeg|max:5120'
             ]);
+
             $user = Auth::user();
             $imageName = $this->UploadImage($request, 'profile_picture', 'users');
+
             $user->update([
-                'profile_picture'=> $imageName
+                'profile_picture' => $imageName
             ]);
             $user->save();
+
             return redirect()->back()->with('Profile-success', 'Image Updated successfully.');
         }
     }
+
     public function storeEditUserInformation(Request $request)
     {
         $request->validate([
@@ -395,14 +538,11 @@ class UserController extends Controller
 
         $user = auth()->user();
 
-        // Check if both name and password are provided
         if ($request->filled(['name', 'old_password', 'new_password'])) {
-            // Validate old password
             if (!Hash::check($request->input('old_password'), $user->password)) {
                 return redirect()->back()->withErrors(['old_password' => 'The old password is incorrect.']);
             }
 
-            // Update name and password
             $user->update([
                 'name' => $request->name,
                 'password' => Hash::make($request->new_password)
@@ -411,20 +551,20 @@ class UserController extends Controller
             return redirect()->route('user.editUserInformation')->with('success', 'Personal Information Updated Successfully');
         }
 
-        // Check if only name is provided
         if ($request->filled('name')) {
             $user->update([
                 'name' => $request->name
             ]);
+
             return redirect()->route('user.editUserInformation')->with('success', 'Name Updated Successfully');
         }
 
-        // Check if only password is provided
         if ($request->filled('old_password') && $request->filled('new_password')) {
             if (Hash::check($request->input('old_password'), $user->password)) {
                 $user->update([
                     'password' => Hash::make($request->new_password)
                 ]);
+
                 return redirect()->back()->with('success', 'Password Updated Successfully.');
             } else {
                 return redirect()->back()->withErrors(['old_password' => 'The old password is incorrect.']);
@@ -433,8 +573,10 @@ class UserController extends Controller
 
         return redirect()->route('user.editUserInformation')->with('error', 'No Changes');
     }
-    public function viewContactUs(){
+
+    public function viewContactUs()
+    {
         $user = Auth::user();
-        return view('user.contactUs',compact('user'));
+        return view('user.contactUs', compact('user'));
     }
 }

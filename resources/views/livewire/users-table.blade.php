@@ -113,12 +113,12 @@
                                                 <span class="badge bg-info">{{ $user->courses->count() }} courses</span>
                                                 <div class="mt-1">
                                                     <button class="btn btn-sm btn-outline-info" 
-                                                            onclick="showUserCourses({{ $user->id }}, '{{ $user->name }}', {{ $user->courses->toJson() }})">
-                                                        <i class="ti ti-eye"></i> View
+                                                            onclick="showUserCoursesEnhanced({{ $user->id }}, '{{ $user->name }}', {{ $user->courses->load('sections')->toJson() }})">
+                                                        <i class="ti ti-eye"></i> View Details
                                                     </button>
                                                 </div>
                                             @else
-                                                <span class="text-muted">No courses</span>
+                                                <span class="text-warning">No courses</span>
                                             @endif
                                         </td>
                                         <td class="px-4 py-3 text-center">
@@ -263,7 +263,7 @@
                                     @endforeach
                                     
                                     @if(empty($selectedCourses))
-                                        <p class="text-muted">Please select courses first to see their sections.</p>
+                                        <p class="text-warning">Please select courses first to see their sections.</p>
                                     @endif
                                 </div>
                             </div>
@@ -282,48 +282,120 @@
 </div>
 
 <script>
-// Function to show user courses in a modal
-function showUserCourses(userId, userName, courses) {
+// Enhanced function to show user courses with unassign functionality
+function showUserCoursesEnhanced(userId, userName, courses) {
     let coursesHtml = '';
     
     if (courses && courses.length > 0) {
         courses.forEach(course => {
+            // Get user's sections for this course
+            const userSections = course.sections || [];
+            const totalSections = course.sections ? course.sections.length : 0;
+            const assignedSections = userSections.length;
+            
             coursesHtml += `
-                <div class="card bg-secondary mb-2">
+                <div class="card bg-secondary mb-3 border border-info">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
+                        <div>
+                            <h6 class="card-title mb-0 text-white">
+                                <i class="ti ti-book me-2"></i>${course.course_title}
+                            </h6>
+                            <small class="text-white opacity-75">
+                                ${assignedSections === totalSections ? 'Assigned to all sections' : `${assignedSections} of ${totalSections} sections assigned`}
+                            </small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-light" onclick="unassignCourse(${userId}, ${course.id})" title="Unassign entire course">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </div>
                     <div class="card-body">
-                        <h6 class="card-title text-white">${course.course_title}</h6>
-                        <div class="sections">
-                            <strong>Sections:</strong>
-                            <ul class="mt-1">
+                        <div class="sections-list">
+                            <strong class="text-primary">
+                                <i class="ti ti-list me-1"></i>Assigned Sections:
+                            </strong>
+                            <div class="mt-2">
             `;
             
-            if (course.sections && course.sections.length > 0) {
-                course.sections.forEach(section => {
-                    coursesHtml += `<li class="text-muted">${section.section_name}</li>`;
+            if (userSections.length > 0) {
+                userSections.forEach(section => {
+                    coursesHtml += `
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                            <span class="text-dark">
+                                <i class="ti ti-circle-dot me-1 text-success"></i>${section.section_name}
+                            </span>
+                            <button class="btn btn-sm btn-outline-danger" onclick="unassignSection(${userId}, ${course.id}, ${section.id})" title="Unassign this section">
+                                <i class="ti ti-x"></i>
+                            </button>
+                        </div>
+                    `;
                 });
             } else {
-                coursesHtml += `<li class="text-muted">No sections assigned</li>`;
+                coursesHtml += `<p class="text-warning">No sections assigned</p>`;
             }
             
             coursesHtml += `
-                            </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
             `;
         });
     } else {
-        coursesHtml = '<p class="text-muted">No courses assigned to this user.</p>';
+        coursesHtml = `
+            <div class="text-center py-4">
+                <i class="ti ti-school-off fs-1 text-warning mb-3"></i>
+                <p class="text-warning mb-0">No courses assigned to this user.</p>
+            </div>
+        `;
     }
 
     Swal.fire({
-        title: `${userName}'s Courses`,
+        title: `<i class="ti ti-user me-2"></i>${userName}'s Courses`,
         html: coursesHtml,
-        width: '600px',
+        width: '800px',
         showConfirmButton: false,
         showCloseButton: true,
         customClass: {
-            popup: 'bg-dark text-white'
+            popup: 'bg-dark text-white',
+            title: 'text-white',
+            htmlContainer: 'text-start'
+        },
+        background: '#2c3e50'
+    });
+}
+
+// Function to unassign entire course
+function unassignCourse(userId, courseId) {
+    Swal.fire({
+        title: 'Unassign Course?',
+        text: 'This will remove the entire course and all its sections from the user.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, unassign it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.Livewire.dispatch('unassignCourse', [userId, courseId]);
+        }
+    });
+}
+
+// Function to unassign specific section
+function unassignSection(userId, courseId, sectionId) {
+    Swal.fire({
+        title: 'Unassign Section?',
+        text: 'This will remove only this section from the user.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, unassign it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.Livewire.dispatch('unassignSection', [userId, courseId, sectionId]);
         }
     });
 }
