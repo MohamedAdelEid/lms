@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\JsonResponse;
 
 class LectureController extends Controller
 {
@@ -186,5 +187,162 @@ class LectureController extends Controller
         ]);
 
         return redirect()->route('admin.addLecture')->with('success', 'Lecture Created Successfully');
+    }
+
+    /**
+     * Handle AJAX lecture creation with video upload
+     */
+    public function storeLectureAjax(Request $request): JsonResponse
+    {
+        try {
+            // Validation rules
+            $rules = [
+                'lecture_name' => 'required|string|max:255',
+                'lecture_description' => 'required|string|max:255',
+                'section_id' => 'required|exists:sections,id',
+                'cover_image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'video_path' => 'required|mimes:mp4,avi,mov,wmv|max:512000' // 500MB max for AJAX
+            ];
+
+            $messages = [
+                'lecture_name.required' => 'Lecture name is required',
+                'lecture_description.required' => 'Description is required',
+                'section_id.required' => 'Section is required',
+                'section_id.exists' => 'Selected section is invalid',
+                'cover_image.required' => 'Cover image is required',
+                'cover_image.image' => 'Cover image must be an image file',
+                'cover_image.mimes' => 'Cover image must be jpeg, png, jpg, or gif',
+                'cover_image.max' => 'Cover image must not exceed 2MB',
+                'video_path.required' => 'Video file is required',
+                'video_path.mimes' => 'Video must be mp4, avi, mov, or wmv format',
+                'video_path.max' => 'Video must not exceed 500MB'
+            ];
+
+            $validatedData = $request->validate($rules, $messages);
+
+            $adminId = Auth::guard('admin')->id();
+            
+            // Upload cover image
+            $coverImageName = $this->UploadImage($request, 'cover_image', 'VideoCoverImages');
+            
+            // Create lecture
+            $lecture = Lecture::create([
+                'lecture_name' => $validatedData['lecture_name'],
+                'lecture_description' => $validatedData['lecture_description'],
+                'section_id' => $validatedData['section_id'],
+                'admin_id' => $adminId,
+            ]);
+
+            // Handle video upload
+            $videoFile = $request->file('video_path');
+            $section = Section::find($validatedData['section_id']);
+            $course = Course::find($section->course_id);
+            
+            $courseName = $course->course_title;
+            $sectionName = $section->section_name;
+            $lectureName = $lecture->lecture_name;
+
+            $video_name = time() . '-vid.' . $videoFile->getClientOriginalExtension();
+            $directory = "{$courseName}/{$sectionName}/{$lectureName}";
+            $videoPath = Storage::disk('public/videos')->putFileAs($directory, $videoFile, $video_name);
+
+            // Create video record
+            Video::create([
+                'name' => $video_name,
+                'video_path' => $videoPath,
+                'lecture_id' => $lecture->id,
+                'cover_image' => $coverImageName
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Lecture created successfully!',
+                'lecture_id' => $lecture->id,
+                'redirect_url' => route('admin.addLecture')
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while creating the lecture: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Handle video upload progress tracking
+     */
+    public function uploadVideoProgress(Request $request): JsonResponse
+    {
+        try {
+            if (!$request->hasFile('video_chunk')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No video chunk received'
+                ], 400);
+            }
+
+            $chunk = $request->file('video_chunk');
+            $chunkIndex = $request->input('chunk_index', 0);
+            $totalChunks = $request->input('total_chunks', 1);
+            $fileName = $request->input('file_name');
+            $uploadId = $request->input('upload_id');
+
+            // Create temporary directory for chunks
+            $tempDir = storage_path('app/temp/uploads/' . $uploadId);
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            // Save chunk
+            $chunkPath = $tempDir . '/chunk_' . $chunkIndex;
+            $chunk->move($tempDir, 'chunk_' . $chunkIndex);
+
+            // Check if all chunks are uploaded
+            $uploadedChunks = glob($tempDir . '/chunk_*');
+            $progress = (count($uploadedChunks) / $totalChunks) * 100;
+
+            if (count($uploadedChunks) == $totalChunks) {
+                // All chunks uploaded, merge them
+                $finalPath = storage_path('app/temp/uploads/' . $fileName);
+                $finalFile = fopen($finalPath, 'wb');
+
+                for ($i = 0; $i < $totalChunks; $i++) {
+                    $chunkFile = fopen($tempDir . '/chunk_' . $i, 'rb');
+                    stream_copy_to_stream($chunkFile, $finalFile);
+                    fclose($chunkFile);
+                }
+                fclose($finalFile);
+
+                // Clean up chunks
+                array_map('unlink', $uploadedChunks);
+                rmdir($tempDir);
+
+                return response()->json([
+                    'success' => true,
+                    'progress' => 100,
+                    'message' => 'Upload completed',
+                    'file_path' => $finalPath
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'progress' => round($progress, 2),
+                'message' => 'Chunk uploaded successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

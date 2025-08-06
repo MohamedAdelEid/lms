@@ -75,6 +75,8 @@ Route::group(['middleware' => 'admin', 'prefix' => 'admin'],function (){
     Route::get('editlecture/{id}',[LectureController::class,'viewEditLecture'])->name('admin.editLecture');
     Route::put('editlecture/{id}',[LectureController::class,'editLecture'])->name('edit.editLecture');
     Route::get('lecture/{id}/video/{video?}', [LectureController::class, 'viewLectureVideo'])->name('admin.viewLectureVideo');
+    Route::post('/store-lecture-ajax', [LectureController::class, 'storeLectureAjax'])->name('admin.storeLectureAjax');
+    Route::post('/upload-video-progress', [LectureController::class, 'uploadVideoProgress'])->name('admin.uploadVideoProgress');
 
 
     //InstructorsRoutes
