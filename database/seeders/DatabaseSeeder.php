@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
         \App\Models\Admin\Admin::create([
             'first_name' => 'Mohamed',
             'last_name' => 'Saad',
-            'email' => 'dev.mohamedsaad@gmail.com',
-            'password' => Hash::make('Admin@123'),
+            'email' => 'demo@gmail.com',
+            'password' => Hash::make('demo@123'),
             'phone_number' => '01098001021',
             'profile_picture' => '1.jpg'
         ]);
