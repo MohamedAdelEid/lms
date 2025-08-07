@@ -253,9 +253,9 @@
                                                     <input type="password" placeholder="Enter Old Password"
                                                         class="form-control auth__password @error('old_password') is-invalid @enderror"
                                                         name="old_password" id="old-password" value="">
-                                                    <span class="password__icon input-group-text icon-edit">
+                                                    <span class="password__icon cursor-pointer input-group-text icon-edit">
                                                         <i
-                                                            class="text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
+                                                            class="password__icon text-primary fs-6 fw-bold ti ti-eye-off text-mode"></i>
                                                     </span>
                                                     @error('old_password')
                                                         <span class="invalid-feedback" role="alert">
@@ -270,9 +270,9 @@
                                                     <input type="password" placeholder="Enter New Password"
                                                         class="form-control auth__password @error('new_password') is-invalid @enderror"
                                                         name="new_password" id="password">
-                                                    <span class="password__icon input-group-text icon-edit">
+                                                    <span class="password__icon cursor-pointer input-group-text icon-edit">
                                                         <i
-                                                            class="text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
+                                                            class="password__icon text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
                                                     </span>
                                                     @error('new_password')
                                                         <span class="invalid-feedback" role="alert">
@@ -288,9 +288,9 @@
                                                     <input type="password" placeholder="Confirm Password"
                                                         class="form-control auth__password @error('confirm_password') is-invalid @enderror"
                                                         name="confirm_password" id="confirm-password">
-                                                    <span class="password__icon input-group-text icon-edit">
+                                                    <span class="password__icon cursor-pointer input-group-text icon-edit">
                                                         <i
-                                                            class="text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
+                                                            class="password__icon text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
                                                     </span>
                                                     @error('confirm_password')
                                                         <span class="invalid-feedback" role="alert">

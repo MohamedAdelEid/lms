@@ -58,9 +58,9 @@
                                                 class="form-control auth__password @error('password') is-invalid @enderror"
                                                 name="password" placeholder="Password" required
                                                 autocomplete="current-password">
-                                            <span class="password__icon input-group-text icon-edit">
+                                            <span class="password__icon cursor-pointer input-group-text icon-edit">
                                                 <i
-                                                    class="text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
+                                                    class="password__icon text-primary fs-6 fw-bold ti ti-eye-off text-mode"></i>
                                             </span>
                                         </div>
                                         @error('password')

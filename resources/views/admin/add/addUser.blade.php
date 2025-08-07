@@ -100,8 +100,8 @@
                                 <div class="position-relative">
                                     <input type="password" placeholder="Password" name="password"
                                         class="form-control auth__password @error('password') is-invalid @enderror" id="password">
-                                    <span class="password__icon input-group-text icon-edit">
-                                        <i class="text-primary fs-6 fw-bold ti ti-eye-off text-mode cursor-pointer"></i>
+                                    <span class="password__icon cursor-pointer input-group-text icon-edit">
+                                        <i class="password__icon text-primary fs-6 fw-bold ti ti-eye-off text-mode"></i>
                                     </span>
                                 </div>
                                 @error('password')
